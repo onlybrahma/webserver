@@ -1,0 +1,92 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+)
+
+func main() {
+	fileserver := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fileserver)
+	http.HandleFunc("/form", formHandler)
+	http.HandleFunc("/hello", helloHandler)
+	fmt.Println("Starting server at port 8080...")
+	err := http.ListenAndServe(":8080", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/hello" {
+		http.Error(w, "Page not found", http.StatusNotFound)
+		return
+	}
+	if r.Method != "GET" {
+		http.Error(w, "Method not Supported", http.StatusNotFound)
+		return
+	}
+	fmt.Fprintf(w, "Hello!")
+}
+
+func formHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		fmt.Fprintf(w, "Parse form error: %v", err)
+		return
+	}
+
+	fmt.Fprintf(w, "POST request successful!\n")
+	n := r.FormValue("name")
+	a := r.FormValue("age")
+	fmt.Fprintf(w, "Name : %s\n", n)
+	fmt.Fprintf(w, "Age : %s\n", a)
+
+	fmt.Fprintf(w, "\n*** File Content ***\n")
+	fmt.Fprintf(w, "________________________")
+	fmt.Fprintf(w, "\nName\tAge\n")
+
+	//Append second line
+	file, err := os.OpenFile("temp.csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println(err)
+	}
+	defer file.Close()
+
+	if _, err := file.WriteString(n + "," + a + "\n"); err != nil {
+		log.Fatal(err)
+	}
+	/*
+		data, err := ioutil.ReadFile("temp.csv")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprintf(w, string(data))
+	*/
+
+	//	file, err = os.OpenFile("temp.csv", os.O_RDONLY, 0644)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	defer file.Close()
+
+	f, err := os.OpenFile("temp.csv", os.O_RDONLY, 0644)
+	if err != nil {
+		log.Println(err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		field := strings.Split(line, ",")
+		textToPrint := field[0] + "\t" + field[1] + "\n"
+		fmt.Fprint(w, textToPrint)
+	}
+
+}
